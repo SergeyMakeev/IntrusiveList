@@ -20,8 +20,7 @@ template <auto Member> class intrusive_list;
 class list_node
 {
     template <auto Member> friend class intrusive_list;
-    template <auto Member> friend class intrusive_list_iterator;
-    template <auto Member> friend class intrusive_list_const_iterator;
+    template <auto Member, bool IsConst> friend class intrusive_list_iterator_impl;
 
   private:
     list_node* next_ = nullptr;
@@ -106,9 +105,17 @@ class list_node
     }
 };
 
-template <auto Member> class intrusive_list_iterator
+/*
+
+**Template iterator implementation for intrusive_list**
+
+Single implementation handles both const and non-const iterators to eliminate code duplication.
+Uses IsConst template parameter to control pointer and reference types.
+
+*/
+template <auto Member, bool IsConst> class intrusive_list_iterator_impl
 {
-    template <auto V> friend class intrusive_list_const_iterator;
+    template <auto M, bool IC> friend class intrusive_list_iterator_impl;
 
     // Helper to extract class type from member pointer
     template <typename U> struct class_type_helper;
@@ -123,17 +130,22 @@ template <auto Member> class intrusive_list_iterator
     using iterator_category = std::bidirectional_iterator_tag;
     using value_type = T;
     using difference_type = std::ptrdiff_t;
-    using pointer = T*;
-    using reference = T&;
+    using pointer = std::conditional_t<IsConst, const T*, T*>;
+    using reference = std::conditional_t<IsConst, const T&, T&>;
 
   private:
-    list_node* current_;
+    using node_pointer = std::conditional_t<IsConst, const list_node*, list_node*>;
+    node_pointer current_;
     
-    // Delegate to intrusive_list's implementation to avoid code duplication
-    static T* node_to_object(list_node* node) noexcept { return intrusive_list<Member>::node_to_object(node); }
+    static auto node_to_object(node_pointer node) noexcept { return intrusive_list<Member>::node_to_object(node); }
 
   public:
-    explicit intrusive_list_iterator(list_node* node = nullptr) noexcept : current_(node) {}
+    explicit intrusive_list_iterator_impl(node_pointer node = nullptr) noexcept : current_(node) {}
+    
+    // Allow conversion from non-const to const iterator
+    template<bool OtherIsConst, typename = std::enable_if_t<IsConst && !OtherIsConst>>
+    intrusive_list_iterator_impl(const intrusive_list_iterator_impl<Member, OtherIsConst>& other) noexcept 
+        : current_(other.current_) {}
 
     reference operator*() const noexcept
     {
@@ -147,113 +159,52 @@ template <auto Member> class intrusive_list_iterator
         return node_to_object(current_);
     }
 
-    intrusive_list_iterator& operator++() noexcept
+    intrusive_list_iterator_impl& operator++() noexcept
     {
         assert(current_ != nullptr);
         current_ = current_->next_;
         return *this;
     }
 
-    intrusive_list_iterator operator++(int) noexcept
+    intrusive_list_iterator_impl operator++(int) noexcept
     {
         auto temp = *this;
         ++(*this);
         return temp;
     }
 
-    intrusive_list_iterator& operator--() noexcept
+    intrusive_list_iterator_impl& operator--() noexcept
     {
         assert(current_ != nullptr);
         current_ = current_->prev_;
         return *this;
     }
 
-    intrusive_list_iterator operator--(int) noexcept
+    intrusive_list_iterator_impl operator--(int) noexcept
     {
         auto temp = *this;
         --(*this);
         return temp;
     }
 
-    bool operator==(const intrusive_list_iterator& other) const noexcept { return current_ == other.current_; }
-    bool operator!=(const intrusive_list_iterator& other) const noexcept { return current_ != other.current_; }
-
-    friend class intrusive_list<Member>;
-};
-
-template <auto Member> class intrusive_list_const_iterator
-{
-    // Helper to extract class type from member pointer
-    template <typename U> struct class_type_helper;
-    template <typename U, typename V> struct class_type_helper<V U::*>
-    {
-        using type = U;
-    };
-
-    using T = typename class_type_helper<decltype(Member)>::type;
-
-  public:
-    using iterator_category = std::bidirectional_iterator_tag;
-    using value_type = T;
-    using difference_type = std::ptrdiff_t;
-    using pointer = const T*;
-    using reference = const T&;
-
-  private:
-    const list_node* current_;
-    static const T* node_to_object(const list_node* node) noexcept { return intrusive_list<Member>::node_to_object(node); }
-
-  public:
-    explicit intrusive_list_const_iterator(const list_node* node = nullptr) noexcept : current_(node) {}
+    template<bool OtherIsConst>
+    bool operator==(const intrusive_list_iterator_impl<Member, OtherIsConst>& other) const noexcept 
+    { 
+        return current_ == other.current_; 
+    }
     
-    // Allow conversion from non-const iterator
-    intrusive_list_const_iterator(const intrusive_list_iterator<Member>& other) noexcept : current_(other.current_) {}
-
-    reference operator*() const noexcept
-    {
-        assert(current_ != nullptr);
-        return *node_to_object(current_);
+    template<bool OtherIsConst>
+    bool operator!=(const intrusive_list_iterator_impl<Member, OtherIsConst>& other) const noexcept 
+    { 
+        return current_ != other.current_; 
     }
-
-    pointer operator->() const noexcept
-    {
-        assert(current_ != nullptr);
-        return node_to_object(current_);
-    }
-
-    intrusive_list_const_iterator& operator++() noexcept
-    {
-        assert(current_ != nullptr);
-        current_ = current_->next_;
-        return *this;
-    }
-
-    intrusive_list_const_iterator operator++(int) noexcept
-    {
-        auto temp = *this;
-        ++(*this);
-        return temp;
-    }
-
-    intrusive_list_const_iterator& operator--() noexcept
-    {
-        assert(current_ != nullptr);
-        current_ = current_->prev_;
-        return *this;
-    }
-
-    intrusive_list_const_iterator operator--(int) noexcept
-    {
-        auto temp = *this;
-        --(*this);
-        return temp;
-    }
-
-    bool operator==(const intrusive_list_const_iterator& other) const noexcept { return current_ == other.current_; }
-    bool operator!=(const intrusive_list_const_iterator& other) const noexcept { return current_ != other.current_; }
 
     friend class intrusive_list<Member>;
 };
+
+// Type aliases for the specific iterator types
+template <auto Member> using intrusive_list_iterator = intrusive_list_iterator_impl<Member, false>;
+template <auto Member> using intrusive_list_const_iterator = intrusive_list_iterator_impl<Member, true>;
 
 /*
 
