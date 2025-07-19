@@ -34,46 +34,53 @@ class list_node
 
     list_node(list_node&& other) noexcept
     {
-        if (other.is_linked())
+        if (!other.is_linked())
         {
-            // Take over the other node's position in the list
-            next_ = other.next_;
-            prev_ = other.prev_;
-            
-            // In a circular list, linked nodes are guaranteed to have valid pointers when the node is linked
-            assert(next_ != nullptr && prev_ != nullptr);
-            next_->prev_ = this;
-            prev_->next_ = this;
-            
-            // Leave other node in unlinked state
-            other.next_ = nullptr;
-            other.prev_ = nullptr;
+            return;
         }
+
+        // Take over the other node's position in the list
+        next_ = other.next_;
+        prev_ = other.prev_;
+        
+        // In a circular list, linked nodes are guaranteed to have valid pointers when the node is linked
+        assert(next_ != nullptr && prev_ != nullptr);
+        next_->prev_ = this;
+        prev_->next_ = this;
+        
+        // Leave other node in unlinked state
+        other.next_ = nullptr;
+        other.prev_ = nullptr;
     }
 
     list_node& operator=(list_node&& other) noexcept
     {
-        if (this != &other)
+        if (this == &other)
         {
-            // Remove this node from any current list
-            unlink(); 
-            
-            if (other.is_linked())
-            {
-                // Take over the other node's position
-                next_ = other.next_;
-                prev_ = other.prev_;
-                
-                // In a circular list, linked nodes are guaranteed to have valid pointers when the node is linked
-                assert(next_ != nullptr && prev_ != nullptr);
-                next_->prev_ = this;
-                prev_->next_ = this;
-                
-                // Leave other node in unlinked state
-                other.next_ = nullptr;
-                other.prev_ = nullptr;
-            }
+            return *this;
         }
+
+        // Remove this node from any current list
+        unlink(); 
+        
+        if (!other.is_linked())
+        {
+            return *this;
+        }
+
+        // Take over the other node's position
+        next_ = other.next_;
+        prev_ = other.prev_;
+        
+        // In a circular list, linked nodes are guaranteed to have valid pointers when the node is linked
+        assert(next_ != nullptr && prev_ != nullptr);
+        next_->prev_ = this;
+        prev_->next_ = this;
+        
+        // Leave other node in unlinked state
+        other.next_ = nullptr;
+        other.prev_ = nullptr;
+        
         return *this;
     }
 
@@ -93,15 +100,17 @@ class list_node
 
     void unlink() noexcept
     {
-        if (is_linked())
+        if (!is_linked())
         {
-            // In a circular list, linked nodes are guaranteed to have valid pointers when the node is linked
-            assert(next_ != nullptr && prev_ != nullptr);
-            next_->prev_ = prev_;
-            prev_->next_ = next_;
-            next_ = nullptr;
-            prev_ = nullptr;
+            return;
         }
+
+        // In a circular list, linked nodes are guaranteed to have valid pointers when the node is linked
+        assert(next_ != nullptr && prev_ != nullptr);
+        next_->prev_ = prev_;
+        prev_->next_ = next_;
+        next_ = nullptr;
+        prev_ = nullptr;
     }
 };
 
@@ -293,11 +302,13 @@ template <auto Member> class intrusive_list
 
     intrusive_list& operator=(intrusive_list&& other) noexcept
     {
-        if (this != &other)
+        if (this == &other)
         {
-            clear();
-            swap(other);
+            return *this;
         }
+
+        clear();
+        swap(other);
         return *this;
     }
 
