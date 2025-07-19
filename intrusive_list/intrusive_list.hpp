@@ -43,11 +43,10 @@ class list_node
             next_ = other.next_;
             prev_ = other.prev_;
 
-            // Update neighbors to point to this node instead of the moved-from node
-            if (next_)
-                next_->prev_ = this;
-            if (prev_)
-                prev_->next_ = this;
+            // Both pointers guaranteed non-null when is_linked() is true
+            assert(next_ != nullptr && prev_ != nullptr);
+            next_->prev_ = this;
+            prev_->next_ = this;
 
             // Clear the other node to leave it in an unlinked state
             other.next_ = nullptr;
@@ -67,11 +66,10 @@ class list_node
                 next_ = other.next_;
                 prev_ = other.prev_;
 
-                // Update neighbors
-                if (next_)
-                    next_->prev_ = this;
-                if (prev_)
-                    prev_->next_ = this;
+                // Both pointers guaranteed non-null when is_linked() is true
+                assert(next_ != nullptr && prev_ != nullptr);
+                next_->prev_ = this;
+                prev_->next_ = this;
 
                 // Clear the other node
                 other.next_ = nullptr;
@@ -85,16 +83,21 @@ class list_node
     list_node(const list_node&) = delete;
     list_node& operator=(const list_node&) = delete;
 
-    bool is_linked() const noexcept { return next_ != nullptr || prev_ != nullptr; }
+    // Optimized: only check one pointer since they're always both null or both non-null
+    bool is_linked() const noexcept
+    {
+        assert((next_ != nullptr && prev_ != nullptr) || (next_ == nullptr && prev_ == nullptr));
+        return next_ != nullptr;
+    }
 
     void unlink() noexcept
     {
         if (is_linked())
         {
-            if (next_)
-                next_->prev_ = prev_;
-            if (prev_)
-                prev_->next_ = next_;
+            // In sentinel circular list, if linked then both pointers are guaranteed non-null
+            assert(next_ != nullptr && prev_ != nullptr);
+            next_->prev_ = prev_;
+            prev_->next_ = next_;
             next_ = nullptr;
             prev_ = nullptr;
         }
@@ -128,21 +131,8 @@ template <auto Member> class intrusive_list_iterator
   private:
     list_node* current_;
 
-    // Convert from list_node back to containing object using pointer arithmetic
-    // We calculate the offset of the Member within T and subtract it from the node address
-    static T* node_to_object(list_node* node) noexcept
-    {
-        if (!node)
-            return nullptr;
-
-        // Calculate offset of the member within T - this lambda captures the offset at compile time
-        // We use nullptr cast to avoid actually dereferencing null, just getting the address offset
-        static const auto offset = [] { return reinterpret_cast<std::uintptr_t>(&(static_cast<T*>(nullptr)->*Member)); }();
-
-        // Subtract offset to get object pointer - this works because the node is embedded within the object
-        auto obj_ptr = reinterpret_cast<std::uintptr_t>(node) - offset;
-        return reinterpret_cast<T*>(obj_ptr);
-    }
+    // Use the shared node_to_object implementation from intrusive_list
+    static T* node_to_object(list_node* node) noexcept { return intrusive_list<Member>::node_to_object(node); }
 
   public:
     explicit intrusive_list_iterator(list_node* node = nullptr) noexcept
@@ -222,15 +212,7 @@ template <auto Member> class intrusive_list_const_iterator
   private:
     const list_node* current_;
 
-    static const T* node_to_object(const list_node* node) noexcept
-    {
-        if (!node)
-            return nullptr;
-
-        static const auto offset = [] { return reinterpret_cast<std::uintptr_t>(&(static_cast<T*>(nullptr)->*Member)); }();
-        auto obj_ptr = reinterpret_cast<std::uintptr_t>(node) - offset;
-        return reinterpret_cast<const T*>(obj_ptr);
-    }
+    static const T* node_to_object(const list_node* node) noexcept { return intrusive_list<Member>::node_to_object(node); }
 
   public:
     explicit intrusive_list_const_iterator(const list_node* node = nullptr) noexcept
@@ -335,6 +317,18 @@ template <auto Member> class intrusive_list
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
 
+  public:
+    // Optimized node-to-object conversion - single template handles both const and non-const cases
+    template<typename NodePtr>
+    static auto node_to_object(NodePtr node) noexcept
+    {
+        using ReturnType = std::conditional_t<std::is_const_v<std::remove_pointer_t<NodePtr>>, const T*, T*>;
+        assert(node != nullptr);
+        static const auto offset = [] { return reinterpret_cast<std::uintptr_t>(&(static_cast<T*>(nullptr)->*Member)); }();
+        auto obj_ptr = reinterpret_cast<std::uintptr_t>(node) - offset;
+        return reinterpret_cast<ReturnType>(obj_ptr);
+    }
+
   private:
     // Sentinel node creates a circular list - simplifies edge case handling by eliminating null checks
     // Empty list has sentinel pointing to itself; non-empty list has sentinel as dummy node between head/tail
@@ -392,25 +386,25 @@ template <auto Member> class intrusive_list
     reference front() noexcept
     {
         assert(!empty());
-        return *begin();
+        return *node_to_object(sentinel_.next_);
     }
 
     const_reference front() const noexcept
     {
         assert(!empty());
-        return *begin();
+        return *node_to_object(sentinel_.next_);
     }
 
     reference back() noexcept
     {
         assert(!empty());
-        return *(--end());
+        return *node_to_object(sentinel_.prev_);
     }
 
     const_reference back() const noexcept
     {
         assert(!empty());
-        return *(--end());
+        return *node_to_object(sentinel_.prev_);
     }
 
     void push_front(T& obj)
