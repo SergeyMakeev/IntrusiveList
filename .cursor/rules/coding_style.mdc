@@ -1,6 +1,3 @@
----
-alwaysApply: true
----
 
 # Coding Style Rules
 
@@ -20,6 +17,12 @@ alwaysApply: true
 - **Type aliases for clean APIs**: Provide familiar names while using unified implementations
 - **Follow standard library patterns**: Use patterns like `std::conditional_t` and SFINAE for type safety
 - **Single source of truth**: Maintain logic in one place to reduce maintenance burden
+
+## Control Flow and Nesting
+- **Prefer early exits**: Use guard clauses and early returns to minimize nesting
+- **Avoid deep conditionals**: Keep the main logic at the top level rather than buried in if statements
+- **Handle edge cases first**: Deal with special cases early and return, leaving the main path unindented
+- **Linear flow**: Structure code so the primary logic flows top-to-bottom without deep nesting
 
 ## Examples
 
@@ -78,4 +81,50 @@ class my_iterator_impl {
 // Clean API through type aliases
 using my_iterator = my_iterator_impl<false>;
 using my_const_iterator = my_iterator_impl<true>;
+```
+
+### ❌ Bad (deep nesting):
+```cpp
+list_node(list_node&& other) noexcept
+{
+    if (other.is_linked())
+    {
+        // Take over the other node's position in the list
+        next_ = other.next_;
+        prev_ = other.prev_;
+        
+        // In a circular list, linked nodes are guaranteed to have valid pointers when the node is linked
+        assert(next_ != nullptr && prev_ != nullptr);
+        next_->prev_ = this;
+        prev_->next_ = this;
+        
+        // Leave other node in unlinked state
+        other.next_ = nullptr;
+        other.prev_ = nullptr;
+    }
+}
+```
+
+### ✅ Good (early exit, linear flow):
+```cpp
+list_node(list_node&& other) noexcept
+{
+    if (!other.is_linked())
+    {
+        return;
+    }
+
+    // Take over the other node's position in the list
+    next_ = other.next_;
+    prev_ = other.prev_;
+    
+    // In a circular list, linked nodes are guaranteed to have valid pointers when the node is linked
+    assert(next_ != nullptr && prev_ != nullptr);
+    next_->prev_ = this;
+    prev_->next_ = this;
+    
+    // Leave other node in unlinked state
+    other.next_ = nullptr;
+    other.prev_ = nullptr;
+}
 ``` 
