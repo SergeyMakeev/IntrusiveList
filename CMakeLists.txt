@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(IntrusiveListProject LANGUAGES CXX)
+project(intrusive_list_tests LANGUAGES CXX)
 
 # Set C++17 standard
 set(CMAKE_CXX_STANDARD 17)
@@ -49,6 +49,8 @@ if(MSVC)
 else()
   target_compile_options(intrusive_list_test PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT intrusive_list_test)
 
 # Register the test with CTest
 include(GoogleTest)
