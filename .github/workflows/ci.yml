@@ -142,10 +142,8 @@ jobs:
       run: |
         if [[ "$RUNNER_OS" == "Windows" ]]; then
           ./${{ matrix.build_type }}/test_intrusive_list.exe
-          ./${{ matrix.build_type }}/example.exe
         else
           ./test_intrusive_list
-          ./example
         fi
       shell: bash
 
@@ -166,7 +164,6 @@ jobs:
         fi
         
         ./test_intrusive_list
-        ./example
       shell: bash
 
   # Additional job for static analysis

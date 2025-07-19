@@ -30,13 +30,13 @@ FetchContent_MakeAvailable(googletest)
 
 # Create the test executable
 add_executable(
-  intrusive_list_test
+  test_intrusive_list
   test_intrusive_list.cpp
 )
 
 # Link against the intrusive_list library and Google Test
 target_link_libraries(
-  intrusive_list_test
+  test_intrusive_list
   PRIVATE
     intrusive_list
     gtest_main
@@ -45,26 +45,13 @@ target_link_libraries(
 
 # Add compiler warnings
 if(MSVC)
-  target_compile_options(intrusive_list_test PRIVATE /W4)
+  target_compile_options(test_intrusive_list PRIVATE /W4)
 else()
-  target_compile_options(intrusive_list_test PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(test_intrusive_list PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT intrusive_list_test)
+set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT test_intrusive_list)
 
 # Register the test with CTest
 include(GoogleTest)
-gtest_discover_tests(intrusive_list_test)
-
-# Create example executable
-add_executable(example example.cpp)
-
-# Link against the intrusive_list library
-target_link_libraries(example PRIVATE intrusive_list)
-
-# Add compiler warnings
-if(MSVC)
-  target_compile_options(example PRIVATE /W4)
-else()
-  target_compile_options(example PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+gtest_discover_tests(test_intrusive_list)
