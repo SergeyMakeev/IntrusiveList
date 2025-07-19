@@ -134,13 +134,14 @@ jobs:
             # Memory sanitizer requires libc++
             SANITIZER_FLAGS="$SANITIZER_FLAGS -stdlib=libc++"
           fi
-          # Configure with sanitizer flags
+          # Configure with sanitizer flags - ensure GoogleTest is built with same flags
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_CXX_FLAGS="$SANITIZER_FLAGS" \
             -DCMAKE_C_FLAGS="$SANITIZER_FLAGS" \
             -DCMAKE_EXE_LINKER_FLAGS="$SANITIZER_FLAGS" \
-            -DCMAKE_SHARED_LINKER_FLAGS="$SANITIZER_FLAGS"
+            -DCMAKE_SHARED_LINKER_FLAGS="$SANITIZER_FLAGS" \
+            -Dgtest_force_shared_crt=ON
         else
           # Configure without sanitizers
           cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -172,7 +173,14 @@ jobs:
           export UBSAN_OPTIONS="abort_on_error=1:halt_on_error=1:print_stacktrace=1"
         fi
         if [[ "${{ matrix.sanitizers }}" == *"memory"* ]]; then
-          export MSAN_OPTIONS="abort_on_error=1:halt_on_error=1:print_stats=1"
+          # MSan options with suppressions for GoogleTest false positives
+          export MSAN_OPTIONS="abort_on_error=1:halt_on_error=1:print_stats=1:suppressions=$PWD/msan_suppressions.txt"
+          # Create suppression file for GoogleTest issues
+          echo "# Suppress GoogleTest string initialization issues" > msan_suppressions.txt
+          echo "fun:*testing*TestInfo*TestInfo*" >> msan_suppressions.txt
+          echo "fun:*testing*internal*MakeAndRegisterTestInfo*" >> msan_suppressions.txt
+          echo "fun:*__cxx_global_var_init*" >> msan_suppressions.txt
+          echo "fun:*_GLOBAL__sub_I_*" >> msan_suppressions.txt
         fi
         
         ./test_intrusive_list
