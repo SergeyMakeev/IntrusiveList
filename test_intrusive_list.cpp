@@ -55,7 +55,10 @@ struct ConstTestObject
     const int id;
     mutable dod::list_node link;
 
-    explicit ConstTestObject(int i) : id(i) {}
+    explicit ConstTestObject(int i)
+        : id(i)
+    {
+    }
 };
 
 class IntrusiveListTest : public ::testing::Test
@@ -652,7 +655,7 @@ TEST_F(IntrusiveListTest, InsertAtBeginAndEnd)
     EXPECT_EQ(it->value, 1);
     EXPECT_EQ(list.front().value, 1);
 
-    // Insert at end 
+    // Insert at end
     it = list.insert(list.end(), obj2);
     EXPECT_EQ(it->value, 2);
     EXPECT_EQ(list.back().value, 2);
@@ -1161,11 +1164,11 @@ TEST_F(IntrusiveListTest, IteratorInvalidOperations)
 {
     using TestList = dod::intrusive_list<&TestObject::link>;
     TestList list;
-    
+
     // Test default constructed iterators
     TestList::iterator default_it;
     TestList::const_iterator default_cit;
-    
+
     // These should be valid comparisons with default-constructed iterators
     EXPECT_TRUE(default_it == TestList::iterator{});
     EXPECT_TRUE(default_cit == TestList::const_iterator{});
@@ -1179,13 +1182,13 @@ TEST_F(IntrusiveListTest, MoveFromLinkedToLinkedNode)
     TestList list1, list2;
     TestObject obj1(1);
     TestObject obj2(2);
-    
+
     list1.push_back(obj1);
     list2.push_back(obj2);
-    
+
     // Move from linked node to another linked node
     obj2.link = std::move(obj1.link);
-    
+
     // obj1 should be unlinked, obj2 should be in list1, list2 should be empty
     EXPECT_TRUE(TestList::can_insert(obj1));
     EXPECT_FALSE(TestList::can_insert(obj2));
@@ -1199,18 +1202,18 @@ TEST_F(IntrusiveListTest, ConstListBeginEnd)
     using TestList = dod::intrusive_list<&TestObject::link>;
     TestList list;
     TestObject obj(42);
-    
+
     list.push_back(obj);
-    
+
     const TestList& const_list = list;
-    
+
     // Test const version of begin/end
     auto const_begin = const_list.begin();
     auto const_end = const_list.end();
-    
+
     EXPECT_NE(const_begin, const_end);
     EXPECT_EQ(const_begin->value, 42);
-    
+
     ++const_begin;
     EXPECT_EQ(const_begin, const_end);
 }
@@ -1220,12 +1223,12 @@ TEST_F(IntrusiveListTest, EraseSingleElementList)
     using TestList = dod::intrusive_list<&TestObject::link>;
     TestList list;
     TestObject obj(42);
-    
+
     list.push_back(obj);
-    
+
     // Erase the only element
     auto it = list.erase(list.begin());
-    
+
     EXPECT_EQ(it, list.end());
     EXPECT_TRUE(list.empty());
     EXPECT_TRUE(TestList::can_insert(obj));
@@ -1238,21 +1241,21 @@ TEST_F(IntrusiveListTest, InsertAndEraseAtSamePosition)
     TestObject obj1(1);
     TestObject obj2(2);
     TestObject obj3(3);
-    
+
     list.push_back(obj1);
     list.push_back(obj3);
-    
+
     // Insert obj2 between obj1 and obj3
     auto pos = list.begin();
     ++pos; // Point to obj3
     auto inserted_it = list.insert(pos, obj2);
-    
+
     // Now erase obj2
     auto next_it = list.erase(inserted_it);
-    
+
     EXPECT_EQ(next_it->value, 3); // Should point to obj3
     EXPECT_TRUE(TestList::can_insert(obj2));
-    
+
     // List should contain only obj1 and obj3
     std::vector<int> values;
     for (const auto& obj : list)
@@ -1267,22 +1270,22 @@ TEST_F(IntrusiveListTest, NodeIsLinkedAfterOperations)
     using TestList = dod::intrusive_list<&TestObject::link>;
     TestList list;
     TestObject obj(42);
-    
+
     // Initially unlinked
     EXPECT_FALSE(obj.link.is_linked());
-    
+
     // After push_back
     list.push_back(obj);
     EXPECT_TRUE(obj.link.is_linked());
-    
+
     // After pop_back
     list.pop_back();
     EXPECT_FALSE(obj.link.is_linked());
-    
+
     // After push_front
     list.push_front(obj);
     EXPECT_TRUE(obj.link.is_linked());
-    
+
     // After pop_front
     list.pop_front();
     EXPECT_FALSE(obj.link.is_linked());
@@ -1294,19 +1297,19 @@ TEST_F(IntrusiveListTest, MultipleSwapsInSequence)
     TestList list1, list2;
     TestObject obj1(1);
     TestObject obj2(2);
-    
+
     list1.push_back(obj1);
     list2.push_back(obj2);
-    
+
     // Multiple swaps should work correctly
     list1.swap(list2); // list1 has obj2, list2 has obj1
     EXPECT_EQ(list1.front().value, 2);
     EXPECT_EQ(list2.front().value, 1);
-    
+
     list1.swap(list2); // Back to original
     EXPECT_EQ(list1.front().value, 1);
     EXPECT_EQ(list2.front().value, 2);
-    
+
     list1.swap(list2); // Swap again
     EXPECT_EQ(list1.front().value, 2);
     EXPECT_EQ(list2.front().value, 1);
@@ -1319,16 +1322,16 @@ TEST_F(IntrusiveListTest, ClearNonEmptyList)
     TestObject obj1(1);
     TestObject obj2(2);
     TestObject obj3(3);
-    
+
     list.push_back(obj1);
     list.push_back(obj2);
     list.push_back(obj3);
-    
+
     EXPECT_FALSE(list.empty());
-    
+
     // Clear should unlink all objects
     list.clear();
-    
+
     EXPECT_TRUE(list.empty());
     EXPECT_TRUE(TestList::can_insert(obj1));
     EXPECT_TRUE(TestList::can_insert(obj2));
@@ -1343,13 +1346,13 @@ TEST_F(IntrusiveListTest, ConstIteratorComparisonEdgeCases)
     using TestList = dod::intrusive_list<&TestObject::link>;
     TestList list;
     TestObject obj(42);
-    
+
     list.push_back(obj);
-    
+
     auto cit1 = list.cbegin();
     auto cit2 = list.cend();
     auto cit3 = list.cbegin();
-    
+
     // Test all comparison combinations
     EXPECT_TRUE(cit1 == cit3);
     EXPECT_FALSE(cit1 == cit2);
@@ -1362,23 +1365,23 @@ TEST_F(IntrusiveListTest, ConstIteratorComparisonEdgeCases)
 TEST_F(IntrusiveListTest, DestructorOrderWithLinkedNodes)
 {
     using DestructorList = dod::intrusive_list<&DestructorTestObject::link>;
-    
+
     {
         DestructorList list;
         auto obj1 = std::make_unique<DestructorTestObject>(1);
         auto obj2 = std::make_unique<DestructorTestObject>(2);
-        
+
         list.push_back(*obj1);
         list.push_back(*obj2);
-        
+
         EXPECT_FALSE(list.empty());
         EXPECT_EQ(DestructorTestObject::destructor_count, 0);
-        
+
         // Destroy objects while still in list
         obj1.reset();
         EXPECT_EQ(DestructorTestObject::destructor_count, 1);
         EXPECT_FALSE(list.empty()); // obj2 still in list
-        
+
         obj2.reset();
         EXPECT_EQ(DestructorTestObject::destructor_count, 2);
         EXPECT_TRUE(list.empty()); // Now empty
