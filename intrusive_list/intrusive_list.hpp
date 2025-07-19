@@ -30,19 +30,11 @@ class list_node
     list_node* prev_ = nullptr;
 
   public:
-    /**
-     * @brief Default constructor - creates an unlinked node
-     */
     list_node() = default;
 
-    /**
-     * @brief Destructor - automatically unlinks from any list
-     */
+    // Automatically unlinks from any list to prevent dangling pointers
     ~list_node() { unlink(); }
 
-    /**
-     * @brief Move constructor
-     */
     list_node(list_node&& other) noexcept
     {
         if (other.is_linked())
@@ -51,21 +43,18 @@ class list_node
             next_ = other.next_;
             prev_ = other.prev_;
 
-            // Update neighbors to point to this node
+            // Update neighbors to point to this node instead of the moved-from node
             if (next_)
                 next_->prev_ = this;
             if (prev_)
                 prev_->next_ = this;
 
-            // Clear the other node
+            // Clear the other node to leave it in an unlinked state
             other.next_ = nullptr;
             other.prev_ = nullptr;
         }
     }
 
-    /**
-     * @brief Move assignment operator
-     */
     list_node& operator=(list_node&& other) noexcept
     {
         if (this != &other)
@@ -92,18 +81,12 @@ class list_node
         return *this;
     }
 
-    // Disable copy operations
+    // Disable copy operations - intrusive nodes should have unique ownership semantics
     list_node(const list_node&) = delete;
     list_node& operator=(const list_node&) = delete;
 
-    /**
-     * @brief Check if this node is currently linked in a list
-     */
     bool is_linked() const noexcept { return next_ != nullptr || prev_ != nullptr; }
 
-    /**
-     * @brief Remove this node from its current list (if any)
-     */
     void unlink() noexcept
     {
         if (is_linked())
@@ -145,16 +128,18 @@ template <auto Member> class intrusive_list_iterator
   private:
     list_node* current_;
 
-    // Helper to convert from node to object
+    // Convert from list_node back to containing object using pointer arithmetic
+    // We calculate the offset of the Member within T and subtract it from the node address
     static T* node_to_object(list_node* node) noexcept
     {
         if (!node)
             return nullptr;
 
-        // Calculate offset of the member within T using offsetof-like calculation
+        // Calculate offset of the member within T - this lambda captures the offset at compile time
+        // We use nullptr cast to avoid actually dereferencing null, just getting the address offset
         static const auto offset = [] { return reinterpret_cast<std::uintptr_t>(&(static_cast<T*>(nullptr)->*Member)); }();
 
-        // Subtract offset to get object pointer
+        // Subtract offset to get object pointer - this works because the node is embedded within the object
         auto obj_ptr = reinterpret_cast<std::uintptr_t>(node) - offset;
         return reinterpret_cast<T*>(obj_ptr);
     }
@@ -351,40 +336,31 @@ template <auto Member> class intrusive_list
     using difference_type = std::ptrdiff_t;
 
   private:
-    mutable list_node sentinel_; // Sentinel node for circular list
+    // Sentinel node creates a circular list - simplifies edge case handling by eliminating null checks
+    // Empty list has sentinel pointing to itself; non-empty list has sentinel as dummy node between head/tail
+    // Another key benefit: nodes can unlink themselves without needing a pointer to the containing list
+    mutable list_node sentinel_;
 
-    // Helper to get the list_node from an object
     static list_node& object_to_node(T& obj) noexcept { return obj.*Member; }
 
     static const list_node& object_to_node(const T& obj) noexcept { return obj.*Member; }
 
   public:
-    /**
-     * @brief Default constructor - creates an empty list
-     */
     intrusive_list() noexcept
     {
+        // Initialize as circular list with sentinel pointing to itself
         sentinel_.next_ = &sentinel_;
         sentinel_.prev_ = &sentinel_;
     }
 
-    /**
-     * @brief Destructor - clears the list
-     */
     ~intrusive_list() { clear(); }
 
-    /**
-     * @brief Move constructor
-     */
     intrusive_list(intrusive_list&& other) noexcept
         : intrusive_list()
     {
         swap(other);
     }
 
-    /**
-     * @brief Move assignment operator
-     */
     intrusive_list& operator=(intrusive_list&& other) noexcept
     {
         if (this != &other)
@@ -395,36 +371,24 @@ template <auto Member> class intrusive_list
         return *this;
     }
 
-    // Disable copy operations
+    // Disable copy operations - intrusive containers should not be copied as objects may be in multiple lists
     intrusive_list(const intrusive_list&) = delete;
     intrusive_list& operator=(const intrusive_list&) = delete;
 
-    /**
-     * @brief Check if the list is empty
-     */
     bool empty() const noexcept { return sentinel_.next_ == &sentinel_; }
 
-    /**
-     * @brief Get iterator to the beginning
-     */
     iterator begin() noexcept { return iterator(sentinel_.next_); }
 
     const_iterator begin() const noexcept { return const_iterator(sentinel_.next_); }
 
     const_iterator cbegin() const noexcept { return const_iterator(sentinel_.next_); }
 
-    /**
-     * @brief Get iterator to the end
-     */
     iterator end() noexcept { return iterator(&sentinel_); }
 
     const_iterator end() const noexcept { return const_iterator(&sentinel_); }
 
     const_iterator cend() const noexcept { return const_iterator(&sentinel_); }
 
-    /**
-     * @brief Get reference to the first element
-     */
     reference front() noexcept
     {
         assert(!empty());
@@ -437,9 +401,6 @@ template <auto Member> class intrusive_list
         return *begin();
     }
 
-    /**
-     * @brief Get reference to the last element
-     */
     reference back() noexcept
     {
         assert(!empty());
@@ -452,13 +413,11 @@ template <auto Member> class intrusive_list
         return *(--end());
     }
 
-    /**
-     * @brief Add element to the front of the list
-     */
     void push_front(T& obj)
     {
         auto& node = object_to_node(obj);
-        assert(!node.is_linked()); // Object must not already be in a list
+        // Objects can only be in one intrusive list at a time to prevent corruption
+        assert(!node.is_linked());
 
         node.next_ = sentinel_.next_;
         node.prev_ = &sentinel_;
@@ -467,13 +426,10 @@ template <auto Member> class intrusive_list
         sentinel_.next_ = &node;
     }
 
-    /**
-     * @brief Add element to the back of the list
-     */
     void push_back(T& obj)
     {
         auto& node = object_to_node(obj);
-        assert(!node.is_linked()); // Object must not already be in a list
+        assert(!node.is_linked());
 
         node.next_ = &sentinel_;
         node.prev_ = sentinel_.prev_;
@@ -482,31 +438,22 @@ template <auto Member> class intrusive_list
         sentinel_.prev_ = &node;
     }
 
-    /**
-     * @brief Remove the first element
-     */
     void pop_front() noexcept
     {
         assert(!empty());
         sentinel_.next_->unlink();
     }
 
-    /**
-     * @brief Remove the last element
-     */
     void pop_back() noexcept
     {
         assert(!empty());
         sentinel_.prev_->unlink();
     }
 
-    /**
-     * @brief Insert element before the given position
-     */
     iterator insert(const_iterator pos, T& obj)
     {
         auto& node = object_to_node(obj);
-        assert(!node.is_linked()); // Object must not already be in a list
+        assert(!node.is_linked());
 
         auto* pos_node = const_cast<list_node*>(pos.current_);
 
@@ -519,9 +466,6 @@ template <auto Member> class intrusive_list
         return iterator(&node);
     }
 
-    /**
-     * @brief Remove element at the given position
-     */
     iterator erase(const_iterator pos) noexcept
     {
         assert(pos != end());
@@ -534,18 +478,12 @@ template <auto Member> class intrusive_list
         return iterator(next_node);
     }
 
-    /**
-     * @brief Remove the given object from the list
-     */
     void erase(T& obj) noexcept
     {
         auto& node = object_to_node(obj);
         node.unlink();
     }
 
-    /**
-     * @brief Remove all elements from the list
-     */
     void clear() noexcept
     {
         while (!empty())
@@ -554,37 +492,35 @@ template <auto Member> class intrusive_list
         }
     }
 
-    /**
-     * @brief Swap contents with another list
-     */
     void swap(intrusive_list& other) noexcept
     {
         if (this == &other)
             return;
 
-        // Handle empty lists
+        // Handle empty lists specially because sentinel nodes need different treatment
         bool this_empty = empty();
         bool other_empty = other.empty();
 
         if (this_empty && other_empty)
         {
-            return; // Both empty, nothing to do
+            return;
         }
 
         if (this_empty)
         {
-            // This is empty, other is not
+            // Transfer other's list to this - update all nodes to point to this sentinel
             sentinel_.next_ = other.sentinel_.next_;
             sentinel_.prev_ = other.sentinel_.prev_;
             sentinel_.next_->prev_ = &sentinel_;
             sentinel_.prev_->next_ = &sentinel_;
 
+            // Reset other to empty state
             other.sentinel_.next_ = &other.sentinel_;
             other.sentinel_.prev_ = &other.sentinel_;
         }
         else if (other_empty)
         {
-            // Other is empty, this is not
+            // Transfer this list to other
             other.sentinel_.next_ = sentinel_.next_;
             other.sentinel_.prev_ = sentinel_.prev_;
             other.sentinel_.next_->prev_ = &other.sentinel_;
@@ -595,10 +531,11 @@ template <auto Member> class intrusive_list
         }
         else
         {
-            // Both non-empty
+            // Both non-empty - swap the sentinel pointers and update all nodes
             std::swap(sentinel_.next_, other.sentinel_.next_);
             std::swap(sentinel_.prev_, other.sentinel_.prev_);
 
+            // Update head/tail nodes to point to correct sentinels
             sentinel_.next_->prev_ = &sentinel_;
             sentinel_.prev_->next_ = &sentinel_;
             other.sentinel_.next_->prev_ = &other.sentinel_;
@@ -606,15 +543,10 @@ template <auto Member> class intrusive_list
         }
     }
 
-    /**
-     * @brief Check if an object can be safely added to the list
-     */
+    // Check if an object can be safely added - prevents double-insertion bugs
     static bool can_insert(const T& obj) noexcept { return !object_to_node(obj).is_linked(); }
 };
 
-/**
- * @brief Non-member swap function
- */
 template <auto Member> void swap(intrusive_list<Member>& a, intrusive_list<Member>& b) noexcept { a.swap(b); }
 
-} // namespace intrusive
+} // namespace dod
