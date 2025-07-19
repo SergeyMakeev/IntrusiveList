@@ -2,6 +2,10 @@
 
 A modern, C++17 compatible intrusive doubly-linked list implementation. This is a single-header, header-only library that provides efficient intrusive containers with sentinel circular list optimization.
 
+[![License](https://img.shields.io/github/license/SergeyMakeev/IntrusiveList)](LICENSE)
+[![Linux GCC](https://github.com/SergeyMakeev/IntrusiveList/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SergeyMakeev/IntrusiveList/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/github/sergeymakeev/intrusivelist/graph/badge.svg?token=AHAR2I2Z32)](https://codecov.io/github/sergeymakeev/intrusivelist)
+
 ## Quick Start
 
 ```bash
