@@ -5,13 +5,6 @@
 #include <iterator>
 #include <type_traits>
 
-// MSan suppression macro for safe pointer arithmetic
-#if defined(__has_attribute) && __has_attribute(no_sanitize)
-    #define INTRUSIVE_NO_SANITIZE_MEMORY __attribute__((no_sanitize("memory")))
-#else
-    #define INTRUSIVE_NO_SANITIZE_MEMORY
-#endif
-
 namespace dod
 {
 
@@ -137,7 +130,6 @@ template <auto Member> class intrusive_list_iterator
 
     // Convert from list_node back to containing object using pointer arithmetic
     // We calculate the offset of the Member within T and subtract it from the node address
-    INTRUSIVE_NO_SANITIZE_MEMORY
     static T* node_to_object(list_node* node) noexcept
     {
         if (!node)
@@ -145,7 +137,6 @@ template <auto Member> class intrusive_list_iterator
 
         // Calculate offset of the member within T - this lambda captures the offset at compile time
         // We use nullptr cast to avoid actually dereferencing null, just getting the address offset
-        // MSan disabled for this function since we're doing pointer arithmetic with `nullptr` (which triggers ASan), not memory access
         static const auto offset = [] { return reinterpret_cast<std::uintptr_t>(&(static_cast<T*>(nullptr)->*Member)); }();
 
         // Subtract offset to get object pointer - this works because the node is embedded within the object
@@ -231,13 +222,11 @@ template <auto Member> class intrusive_list_const_iterator
   private:
     const list_node* current_;
 
-    INTRUSIVE_NO_SANITIZE_MEMORY
     static const T* node_to_object(const list_node* node) noexcept
     {
         if (!node)
             return nullptr;
 
-        // MSan disabled for this function since we're doing safe pointer arithmetic, not memory access
         static const auto offset = [] { return reinterpret_cast<std::uintptr_t>(&(static_cast<T*>(nullptr)->*Member)); }();
         auto obj_ptr = reinterpret_cast<std::uintptr_t>(node) - offset;
         return reinterpret_cast<const T*>(obj_ptr);
@@ -561,6 +550,3 @@ template <auto Member> class intrusive_list
 template <auto Member> void swap(intrusive_list<Member>& a, intrusive_list<Member>& b) noexcept { a.swap(b); }
 
 } // namespace dod
-
-// Clean up macro
-#undef INTRUSIVE_NO_SANITIZE_MEMORY
