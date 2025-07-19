@@ -788,6 +788,7 @@ TEST_F(IntrusiveListTest, NodeSelfMoveAssignment)
     list.push_back(obj);
 
     // Self-move assignment should be no-op
+    // NOLINTNEXTLINE(clang-diagnostic-self-move)
     obj.link = std::move(obj.link);
 
     EXPECT_FALSE(list.empty());
@@ -915,6 +916,7 @@ TEST_F(IntrusiveListTest, ListSelfMoveAssignment)
     list.push_back(obj2);
 
     // Self-move assignment should be no-op
+    // NOLINTNEXTLINE(clang-diagnostic-self-move)
     list = std::move(list);
 
     std::vector<int> values;
