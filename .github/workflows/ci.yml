@@ -128,20 +128,23 @@ jobs:
         export CC=${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
         export CXX=${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
         
-        CMAKE_ARGS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }}"
-        
         if [[ "${{ matrix.sanitizers }}" != "" ]]; then
           SANITIZER_FLAGS="-fsanitize=${{ matrix.sanitizers }} -fno-omit-frame-pointer"
           if [[ "${{ matrix.sanitizers }}" == *"memory"* ]]; then
             # Memory sanitizer requires libc++
             SANITIZER_FLAGS="$SANITIZER_FLAGS -stdlib=libc++"
           fi
-          # Set both compile and link flags for sanitizers
-          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_FLAGS='$SANITIZER_FLAGS' -DCMAKE_C_FLAGS='$SANITIZER_FLAGS'"
-          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS='$SANITIZER_FLAGS' -DCMAKE_SHARED_LINKER_FLAGS='$SANITIZER_FLAGS'"
+          # Configure with sanitizer flags
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_CXX_FLAGS="$SANITIZER_FLAGS" \
+            -DCMAKE_C_FLAGS="$SANITIZER_FLAGS" \
+            -DCMAKE_EXE_LINKER_FLAGS="$SANITIZER_FLAGS" \
+            -DCMAKE_SHARED_LINKER_FLAGS="$SANITIZER_FLAGS"
+        else
+          # Configure without sanitizers
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         fi
-        
-        cmake -B build $CMAKE_ARGS
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }}
