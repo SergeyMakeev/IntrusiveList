@@ -53,12 +53,12 @@ jobs:
 
           # macOS Clang
           - name: "macOS Clang"
-            os: macos-12
+            os: macos-latest
             compiler: clang
             build_type: Release
             
           - name: "macOS Clang Debug"
-            os: macos-12
+            os: macos-latest
             compiler: clang
             build_type: Debug
 
@@ -103,10 +103,20 @@ jobs:
     - name: Setup Clang
       if: matrix.compiler == 'clang' && matrix.os == 'ubuntu-22.04'
       run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh ${{ matrix.version }}
-        sudo apt-get install -y clang-${{ matrix.version }} libc++-${{ matrix.version }}-dev libc++abi-${{ matrix.version }}-dev
+        # Use official LLVM repository for complete toolchain
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-${{ matrix.version }} main" | sudo tee /etc/apt/sources.list.d/llvm.list
+        sudo apt-get update
+        # Install complete Clang toolchain including sanitizers
+        sudo apt-get install -y \
+          clang-${{ matrix.version }} \
+          clang++-${{ matrix.version }} \
+          libc++-${{ matrix.version }}-dev \
+          libc++abi-${{ matrix.version }}-dev \
+          clang-tools-${{ matrix.version }} \
+          llvm-${{ matrix.version }} \
+          lld-${{ matrix.version }} \
+          compiler-rt-${{ matrix.version }}
         sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ matrix.version }} 100
         sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-${{ matrix.version }} 100
 
@@ -124,12 +134,14 @@ jobs:
         CMAKE_ARGS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }}"
         
         if [[ "${{ matrix.sanitizers }}" != "" ]]; then
-          SANITIZER_FLAGS="-fsanitize=${{ matrix.sanitizers }}"
+          SANITIZER_FLAGS="-fsanitize=${{ matrix.sanitizers }} -fno-omit-frame-pointer"
           if [[ "${{ matrix.sanitizers }}" == *"memory"* ]]; then
             # Memory sanitizer requires libc++
             SANITIZER_FLAGS="$SANITIZER_FLAGS -stdlib=libc++"
           fi
-          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_FLAGS='$SANITIZER_FLAGS' -DCMAKE_EXE_LINKER_FLAGS='$SANITIZER_FLAGS'"
+          # Set both compile and link flags for sanitizers
+          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_CXX_FLAGS='$SANITIZER_FLAGS' -DCMAKE_C_FLAGS='$SANITIZER_FLAGS'"
+          CMAKE_ARGS="$CMAKE_ARGS -DCMAKE_EXE_LINKER_FLAGS='$SANITIZER_FLAGS' -DCMAKE_SHARED_LINKER_FLAGS='$SANITIZER_FLAGS'"
         fi
         
         cmake -B build $CMAKE_ARGS
